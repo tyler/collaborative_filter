@@ -9,6 +9,18 @@ Gem::Specification.new do |s|
   s.description = s.summary
   s.require_path = "lib"
   
-  s.files = %W(README.textile LICENSE Rakefile) +
-            Dir['{docs,bin,lib,spec,examples}/**/*']
+  s.files = %W(README.textile
+               LICENSE
+               Rakefile
+               lib/boosters/simple_booster.rb
+               lib/collaborative_filter/config.rb
+               lib/collaborative_filter/content_booster.rb
+               lib/collaborative_filter/data_set.rb
+               lib/collaborative_filter/output
+               lib/collaborative_filter/output/mysql_adapter.rb
+               lib/collaborative_filter/output/yaml_adapter.rb
+               lib/collaborative_filter/output.rb
+               lib/collaborative_filter.rb
+               lib/correlators/simple_svd.rb
+               lib/recommenders/simplest_recommender.rb)
 end
