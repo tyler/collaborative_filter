@@ -36,7 +36,7 @@ class CollaborativeFilter
   end
 
   def self.log(msg)
-    @@logger.info msg
+    @@logger.info(msg) if @@logger
   end
 end
 
