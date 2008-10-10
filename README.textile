@@ -4,7 +4,8 @@ Introduction goes here.
 
 h2. Example
 
-<code>
+<pre>
+  <code>
     CollaborativeFilter.filter(:logger => LOGGER) do |cf|
       # We're using a low threshold settings because we're using a content booster
       # for post processing.  We keep it low so the content booster has plenty of
@@ -98,7 +99,8 @@ h2. Example
         end
       end
     end
-</code>
+  </code>
+</pre>
 
 
 
