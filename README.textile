@@ -1,105 +1,104 @@
-CollaborativeFilter
-===================
+h1. CollaborativeFilter
 
 Introduction goes here.
 
+h2. Example
 
-Example
-=======
+<code>
+    CollaborativeFilter.filter(:logger => LOGGER) do |cf|
+      # We're using a low threshold settings because we're using a content booster
+      # for post processing.  We keep it low so the content booster has plenty of
+      # data to work with.  There is a second threshold in the content booster that
+      # is set high.
+      #
+      # The threshold of the content booster is set at 4.2, with a factor of 0.3
+      # and a single gene.  So the lowest recommendation which could theoretically
+      # make it through the content booster would be:
+      #   
+      #   4.2 - (5 - crossover) * factor =
+      #   4.2 - (5 - 2.5) * 0.3 = 3.45
+      #
+      # So we set it to 3.45.  Anything lower than that will never be recommended.
+      
+      cf.recommender CollaborativeFilter::SimplestRecommender, :threshold => 3.45, :max_per_user => 90
 
-CollaborativeFilter.filter(:logger => LOGGER) do |cf|
-  # We're using a low threshold settings because we're using a content booster
-  # for post processing.  We keep it low so the content booster has plenty of
-  # data to work with.  There is a second threshold in the content booster that
-  # is set high.
-  #
-  # The threshold of the content booster is set at 4.2, with a factor of 0.3
-  # and a single gene.  So the lowest recommendation which could theoretically
-  # make it through the content booster would be:
-  #   
-  #   4.2 - (5 - crossover) * factor =
-  #   4.2 - (5 - 2.5) * 0.3 = 3.45
-  #
-  # So we set it to 3.45.  Anything lower than that will never be recommended.
-  cf.recommender CollaborativeFilter::SimplestRecommender, :threshold => 3.45, :max_per_user => 90
 
+      cf.output :type => :sql, :options => { :table_name => 'recommendations',
+                :mapping => { :user_id => :customer_id, :score => :relevance } }
 
-  cf.output :type => :sql, :options => { :table_name => 'recommendations',
-    :mapping => { :user_id => :customer_id, :score => :relevance } }
+      cf.content_booster do |cb|
+        cb.booster CollaborativeFilter::SimpleBooster
 
-  cf.content_booster do |cb|
-    cb.booster CollaborativeFilter::SimpleBooster
+        # The crossover determines what we consider to be positive or negative.
+        # With a crossover of 2.5, a rating of 3 counts as +0.5, whereas a 
+        # rating of 1 counts as -1.5.
+        cb.crossover 3
 
-    # The crossover determines what we consider to be positive or negative.
-    # With a crossover of 2.5, a rating of 3 counts as +0.5, whereas a 
-    # rating of 1 counts as -1.5.
-    cb.crossover 3
+        # The threshold is a quality control that determines what we allow to be
+        # output.  A threshold of 4.2 means we won't recommend anything that we
+        # think the user will rate lower than 4.2.
+        cb.threshold 4.2
 
-    # The threshold is a quality control that determines what we allow to be
-    # output.  A threshold of 4.2 means we won't recommend anything that we
-    # think the user will rate lower than 4.2.
-    cb.threshold 4.2
+        # The factor determines how much weight we give to content.  A factor of
+        # 1 would be "full weight".  In other words, if your average Superhero
+        # rating is -2, we will subtract 2 from all Superhero recommendations
+        # before thresholding them again.  Whereas a factor of 0.5 would mean
+        # the same person would only have 1 substracted from the Superhero 
+        # recommendations.
+        cb.factor 0.8
 
-    # The factor determines how much weight we give to content.  A factor of
-    # 1 would be "full weight".  In other words, if your average Superhero
-    # rating is -2, we will subtract 2 from all Superhero recommendations
-    # before thresholding them again.  Whereas a factor of 0.5 would mean
-    # the same person would only have 1 substracted from the Superhero 
-    # recommendations.
-    cb.factor 0.8
-
-    # Genes determine content.  You can have multiple of these blocks.  Please
-    # be sure to knock the factor down for each gene, as they all count
-    # independently.
-    cb.gene :genres do |items|
-      items.map do |(id,type)|
-        i = type.constantize.find(id)
-      next i.genres.map(&:id) if i.respond_to?(:genres)
-      next [i.genre.id] if i.respond_to?(:genre) && i.genre
-      []
+        # Genes determine content.  You can have multiple of these blocks.  Please
+        # be sure to knock the factor down for each gene, as they all count
+        # independently.
+        cb.gene :genres do |items|
+          items.map do |(id,type)|
+            i = type.constantize.find(id)
+            next i.genres.map(&:id) if i.respond_to?(:genres)
+            next [i.genre.id] if i.respond_to?(:genre) && i.genre
+            []
+          end
+        end
       end
-    end
-  end
+ 
 
-  cf.dataset :ratings do |ds|
-    ds.correlator CollaborativeFilter::SimpleSvd
-
-    # The cosine_similarity option determines what the minimum cosine similarity
-    # should be between two users to consider them similar.  The
-    # max_similar_users option determines the maximum number of users we'll
-    # user for determining recommendations.  20 seems like a decent number for
-    # this.  Be aware that changing this will significantly impact how long it
-    # takes to run.
-    ds.options :cosine_similarity => 0.96,
-      :max_similar_users => 20
-
-    ds.users Rating.find(:all).map(&:customer).uniq
-    ds.items Rating.find(:all).map(&:rateable).uniq
-    ds.nodes do |m|
-      Rating.find(:all).each do |r|
-        score = r.not_interested ? 0.1 : r.score
-        m[ds.item_index(r.rateable_id, r.rateable_type), ds.user_index(r.customer_id)] = score
+      cf.dataset :ratings do |ds|
+        ds.correlator CollaborativeFilter::SimpleSvd
+        
+        # The cosine_similarity option determines what the minimum cosine similarity
+        # should be between two users to consider them similar.  The
+        # max_similar_users option determines the maximum number of users we'll
+        # user for Determining recommendations.  20 seems like a decent number for
+        # this.  Be aware that changing this will significantly impact how long it
+        # takes to run.
+        ds.options :cosine_similarity => 0.96, :max_similar_users => 20
+        
+        ds.users Rating.find(:all).map(&:customer).uniq
+        ds.items Rating.find(:all).map(&:rateable).uniq
+        ds.nodes do |m|
+          Rating.find(:all).each do |r|
+            score = r.not_interested ? 0.1 : r.score
+            m[ds.item_index(r.rateable_id, r.rateable_type), ds.user_index(r.customer_id)] = score
+          end
+        end
       end
-    end
-  end
 
-  cf.dataset :purchases do |ds|
-    ds.correlator CollaborativeFilter::SimpleSvd
-    ds.options :cosine_similarity => 0.985,
-      :max_similar_users => 20
+      cf.dataset :purchases do |ds|
+        ds.correlator CollaborativeFilter::SimpleSvd
+        ds.options :cosine_similarity => 0.985, :max_similar_users => 20
 
-    ds.users Order.find(:all).map(&:customer).uniq
-    ds.items LineItem.find(:all).map(&:product).uniq
-    ds.nodes do |m|
-      Order.find(:all).each do |o|
-        o.line_items.each do |li|
-          next if li.cancelled?
-          m[ds.item_index(li.product_id), ds.user_index(o.customer_id)] = 5
+        ds.users Order.find(:all).map(&:customer).uniq
+        ds.items LineItem.find(:all).map(&:product).uniq
+        ds.nodes do |m|
+          Order.find(:all).each do |o|
+            o.line_items.each do |li|
+              next if li.cancelled?
+              m[ds.item_index(li.product_id), ds.user_index(o.customer_id)] = 5
+            end
+          end
         end
       end
     end
-  end
-end
+</code>
 
 
 
